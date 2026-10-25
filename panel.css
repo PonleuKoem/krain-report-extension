@@ -1,0 +1,41 @@
+#krain-report-panel {
+  position: fixed;
+  right: 10px;
+  bottom: 70px;
+  z-index: 2147483647;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 8px 10px;
+  background: #1f1f1f;
+  color: #f2f2f2;
+  font: 13px/1.35 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  opacity: 0.95;
+}
+#krain-report-panel * { box-sizing: border-box; font: inherit; color: inherit; }
+#krain-report-panel .kr-head { display: flex; align-items: center; gap: 8px; }
+#krain-report-panel .kr-title { flex: 1; font-weight: 600; color: #ffb74d; }
+#krain-report-panel .kr-min {
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px;
+  background: #333; cursor: pointer; line-height: 22px;
+}
+#krain-report-panel .kr-table { width: 100%; margin-top: 6px; border-collapse: collapse; }
+#krain-report-panel .kr-table td { padding: 2px 4px; white-space: nowrap; }
+#krain-report-panel .kr-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+#krain-report-panel .kr-cnt { text-align: right; color: #9a9a9a; font-size: 11px; }
+#krain-report-panel .kr-a td:first-child { color: #4fc3f7; }
+#krain-report-panel .kr-b td:first-child { color: #c0ca33; }
+#krain-report-panel .kr-sum td { border-top: 1px solid #444; }
+#krain-report-panel .kr-slot td { padding-top: 4px; color: #ffb74d; font-size: 12px; font-weight: 600; }
+#krain-report-panel .kr-hidden { opacity: 0.7; }
+#krain-report-panel .kr-live { color: #66bb6a; font-size: 11px; font-variant-numeric: tabular-nums; }
+#krain-report-panel .kr-flash { animation: kr-flash 1.2s ease-out; }
+@keyframes kr-flash { from { background: rgba(255, 183, 77, 0.55); } to { background: transparent; } }
+#krain-report-panel .kr-status { margin-top: 6px; color: #9a9a9a; font-size: 12px; }
+#krain-report-panel .kr-actions { display: flex; gap: 6px; margin-top: 8px; }
+#krain-report-panel .kr-actions button {
+  flex: 1; padding: 5px 6px; border: 0; border-radius: 4px;
+  background: #e8711a; color: #fff; cursor: pointer; font-weight: 600;
+}
+#krain-report-panel .kr-actions button:disabled { opacity: 0.5; cursor: default; }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KRain Reports</title>
+  <style>
+    :root {
+      --bg: #f6f6f4; --card: #fff; --text: #222; --muted: #777; --line: #e6e6e2;
+      --accent: #e8711a; --rain: #1e88c9; --norain: #7d8c00; --day: #fbf3ea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161616; --card: #1f1f1f; --text: #eee; --muted: #9a9a9a; --line: #333;
+        --accent: #f08a3c; --rain: #4fc3f7; --norain: #c0ca33; --day: #2a231c;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { margin: 0 0 16px; font-size: 20px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    input, select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
+    .quick { display: flex; gap: 6px; flex-wrap: wrap; }
+    button { padding: 7px 12px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    button.secondary { background: var(--line); color: var(--text); }
+    button.danger { background: transparent; color: #d9534f; border: 1px solid currentColor; }
+    .quick button { background: transparent; color: var(--accent); border: 1px solid var(--accent); padding: 5px 10px; }
+    .quick button.on { background: var(--accent); color: #fff; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 14px 0; }
+    .stat { padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+    .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+    .stat span { font-size: 12px; color: var(--muted); }
+    .stat.rain b { color: var(--rain); }
+    .stat.norain b { color: var(--norain); }
+    .wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 7px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    th:first-child, td:first-child { text-align: left; }
+    th { font-size: 12px; color: var(--muted); font-weight: 600; }
+    tr.day td { background: var(--day); font-weight: 600; }
+    td.rain { color: var(--rain); }
+    td.norain { color: var(--norain); }
+    .muted { color: var(--muted); font-size: 12px; }
+    .empty { padding: 30px; text-align: center; color: var(--muted); }
+    .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>KRain Reports</h1>
+    <div class="filters">
+      <label>From <input type="date" id="from"></label>
+      <label>To <input type="date" id="to"></label>
+      <label>Slot
+        <select id="session">
+          <option value="">All slots</option>
+          <option value="06-12">06 - 12</option>
+          <option value="06-18">06 - 18</option>
+          <option value="18-06">18 - 06</option>
+        </select>
+      </label>
+      <div class="quick" id="quick">
+        <button data-range="today">Today</button>
+        <button data-range="7">Last 7 days</button>
+        <button data-range="month">This month</button>
+        <button data-range="all">All</button>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="wrap" id="out"></div>
+    <div class="actions">
+      <button id="csv">Export CSV</button>
+      <button id="delete" class="danger">Delete shown</button>
+    </div>
+  </main>
+  <script type="module" src="report.js"></script>
+</body>
+</html>
