@@ -1,5 +1,6 @@
-// Floating report panel: re-reads the stake lists whenever the page changes
-// and sends the totals of every time slot on the page to be saved.
+// Floating report panel: re-reads the stake lists whenever the page changes,
+// sends every row to be saved and shows the saved totals, which keep rows
+// that have since left the lists.
 (() => {
   if (window.__krainReportLoaded) return;
   window.__krainReportLoaded = true;
@@ -12,15 +13,18 @@
   let lastSaved = '';
   let queued = null;
   let saving = false;
-  const status = { error: null, saveError: null };
+  const saved = new Map(); // label -> sides with the saved totals
+  const status = { error: null, saveError: null, recording: true };
 
   const fmt = n => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Saved totals once the background has answered, what the page shows until then.
+  const sidesOf = slot => saved.get(slot.label) || slot.sides;
   const grand = sides => sides.reduce((a, s) => a + s.total, 0);
 
-  // The background worker files the totals in IndexedDB, one record per day and slot.
+  // The background worker files the rows in IndexedDB, one record per day and slot.
   // While a save is in flight only the newest snapshot is kept, so fast updates coalesce.
   function save(slots) {
-    const snapshot = slots.map(s => ({ label: s.label, sides: s.sides.map(x => ({ name: x.name, total: x.total, count: x.count })) }));
+    const snapshot = slots.map(s => ({ label: s.label, sides: s.sides.map(x => ({ name: x.name, rows: x.rows })) }));
     const key = JSON.stringify(snapshot);
     if (key === lastSaved) return;
     lastSaved = key;
@@ -36,6 +40,8 @@
       try {
         const res = await chrome.runtime.sendMessage({ type: 'saveSlots', slots });
         if (!res || !res.ok) throw new Error(res ? res.error : 'no reply');
+        for (const s of res.slots) if (s.sides.length) saved.set(s.label, s.sides);
+        status.recording = res.recording;
         status.saveError = null;
       } catch (e) {
         lastSaved = ''; // retry on the next read
@@ -67,14 +73,14 @@
   function slotTable(slot) {
     return h('table', { className: 'kr-table' + (slot.visible ? '' : ' kr-hidden') },
       h('tr', { className: 'kr-slot' }, h('td', { colSpan: 3, textContent: slot.label + (slot.visible ? '' : ' (other page)') })),
-      slot.sides.map((s, i) => h('tr', { className: i === 0 ? 'kr-a' : 'kr-b' },
+      sidesOf(slot).map((s, i) => h('tr', { className: i === 0 ? 'kr-a' : 'kr-b' },
         h('td', { textContent: s.name }),
         h('td', { className: 'kr-num' + (changed(slot.label, s) ? ' kr-flash' : ''), textContent: fmt(s.total) }),
         h('td', { className: 'kr-cnt', textContent: `${s.count} rows` }),
       )),
       h('tr', { className: 'kr-sum' },
         h('td', { textContent: 'Total' }),
-        h('td', { className: 'kr-num', textContent: fmt(grand(slot.sides)) }),
+        h('td', { className: 'kr-num', textContent: fmt(grand(sidesOf(slot))) }),
         h('td'),
       ),
     );
@@ -94,8 +100,8 @@
   let changedAt = null;
   function render(force) {
     const message = last && last.slots.length ? null : statusText();
-    const data = JSON.stringify(last && last.slots.map(s => [s.label, s.visible, s.sides.map(x => [x.total, x.count])]));
-    const key = JSON.stringify([collapsed, message, data, status.saveError]);
+    const data = JSON.stringify(last && last.slots.map(s => [s.label, s.visible, sidesOf(s).map(x => [x.total, x.count])]));
+    const key = JSON.stringify([collapsed, message, data, status.saveError, status.recording]);
     if (key === rendered && !force) return;
     rendered = key;
     if (data !== renderedData) {
@@ -128,12 +134,13 @@
     const slots = [...last.slots].sort((a, b) => b.visible - a.visible);
     panel.append(...slots.map(slotTable));
     if (status.saveError) panel.append(h('div', { className: 'kr-status', textContent: 'Not saved: ' + status.saveError }));
+    else if (!status.recording) panel.append(h('div', { className: 'kr-status', textContent: 'Another tab is recording; totals shown are what it saved.' }));
     panel.append(h('div', { className: 'kr-actions' }, h('button', { textContent: 'Copy', onclick: e => copy(e.target) })));
-    for (const s of last.slots) for (const x of s.sides) prevTotals.set(s.label + '|' + x.name, x.total);
+    for (const s of last.slots) for (const x of sidesOf(s)) prevTotals.set(s.label + '|' + x.name, x.total);
   }
 
   async function copy(btn) {
-    const text = last.slots.map(s => reportText(s.label, s.sides)).join('\n\n');
+    const text = last.slots.map(s => reportText(s.label, sidesOf(s))).join('\n\n');
     await navigator.clipboard.writeText(text);
     btn.textContent = 'Copied';
     setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
