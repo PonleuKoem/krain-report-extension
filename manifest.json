@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "KRain Stake Report",
-  "version": "1.1.0",
-  "description": "Sums the Rain / No Rain stake columns on krain88 for each time slot (18-06, 06-12, 06-18) and keeps a day-by-day report.",
-  "permissions": ["storage"],
+  "version": "1.3.0",
+  "description": "Adds up stake x odds / 100 on the Rain / No Rain lists of krain88 for each time slot (18-06, 06-12, 06-18) and keeps a day-by-day report.",
   "background": {
     "service_worker": "background.js",
     "type": "module"

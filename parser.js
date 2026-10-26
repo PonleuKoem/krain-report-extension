@@ -3,7 +3,8 @@
 //   .ticket_list__title (n-th)        -> date + "18 - 06" of slot n
 //   #ticket_list table[name=rainN]    -> Rain rows of slot n
 //   #ticket_list table[name=noRainN]  -> No Rain rows of slot n
-// Each row is <tr><td><span>stake</span><span>odds</span></td></tr>.
+// Each row is <tr id><td><span>stake</span><span>odds</span></td></tr>;
+// a row counts stake * |odds| / 100.
 // Exposed as window.KRainParser.
 (function (root) {
   const SIDES = [
@@ -22,18 +23,20 @@
     return `${date.toUpperCase()} ${time}`;
   }
 
+  // Each row is a price level: its id ("-7_5_25045_1" = odds, slot, side) stays
+  // the same while other players add to or take from its stake.
   function readSide(list, key, i, name) {
     const table = list.querySelector(`table[name="${key}${i}"]`);
-    const values = [];
+    const rows = [];
     if (table) {
       for (const tr of table.querySelectorAll('tr')) {
-        const cell = tr.querySelector('td > span');
-        if (!cell) continue;
-        const n = toNumber(cell.textContent);
-        if (!isNaN(n)) values.push(n);
+        const [stake, odds] = [...tr.querySelectorAll('td > span')].map(c => toNumber(c.textContent));
+        if (tr.id && !isNaN(stake) && !isNaN(odds)) rows.push({ id: tr.id, stake, odds });
       }
     }
-    return { name, count: values.length, total: values.reduce((a, b) => a + b, 0), values };
+    // What the list shows right now; the saved total also keeps rows that have left it.
+    const total = Math.round(rows.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0) * 100) / 100;
+    return { name, count: rows.length, total, rows };
   }
 
   function read(doc) {

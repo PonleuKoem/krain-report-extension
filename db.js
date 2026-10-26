@@ -4,12 +4,17 @@
 // (their IndexedDB would belong to krain88.com), so they message the worker.
 //
 // Record: { id: '2026-10-24 18-06', date: '2026-10-24', session: '18-06', label,
-//           sides: [{ name, total, count }], total, firstSeen, updatedAt }
+//           sides: [{ name, total, count }], total, firstSeen, updatedAt,
+//           slotId: '25045', rows: { [tr id]: { side, odds, stake } } }
+// rows remembers every price level seen, with the stake it last showed.
+// A day after a slot last changed its rows are dropped (rowsCleared: true)
+// and its totals are final.
 
 const DB_NAME = 'krain-report';
 const STORE = 'slots';
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-const HALF_YEAR = 183 * 24 * 3600 * 1000;
+const DAY = 24 * 3600 * 1000;
+const HALF_YEAR = 183 * DAY;
 
 // Tells open extension pages that records changed.
 export const channel = new BroadcastChannel('krain-report');
@@ -51,26 +56,76 @@ export function parseLabel(label, now = Date.now()) {
   return { id: `${date} ${session}`, date, session };
 }
 
-// slots: [{ label, sides: [{ name, total, count }] }] as read from the page.
+const cents = n => Math.round(n * 100) / 100;
+const slotIdOf = rowId => (/_(\d+)_\d+$/.exec(rowId) || [])[1];
+
+// Folds one read of a slot into its saved rows. Each row counts the stake it
+// showed on the latest read that had it: a changed stake, up or down, replaces
+// the old one, and a row that left the list keeps counting its last stake.
+// Returns null when the read doesn't belong to this record (see below).
+export function mergeRows(prev, slot) {
+  const ids = new Set(slot.sides.flatMap(s => s.rows.map(r => slotIdOf(r.id))).filter(Boolean));
+  // Rows of another slot under this title mean the page is mid-redraw.
+  if (ids.size > 1 || prev && prev.slotId && ids.size && !ids.has(prev.slotId)) return null;
+  // Without its rows a finished slot would start again from zero.
+  if (prev && prev.rowsCleared) return null;
+  // Rows saved by version 1.2.0 counted added stake and have no `stake`; start those slots over.
+  const kept = prev && prev.rows && Object.values(prev.rows).every(r => 'stake' in r);
+  const rows = { ...(kept && prev.rows) };
+  for (const side of slot.sides)
+    for (const { id, stake, odds } of side.rows) rows[id] = { side: side.name, odds, stake };
+  const sides = slot.sides.map(({ name }) => {
+    const mine = Object.values(rows).filter(r => r.side === name);
+    return { name, total: cents(mine.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0)), count: mine.length };
+  });
+  return { slotId: (prev && prev.slotId) || [...ids][0], rows, sides, total: cents(sides.reduce((a, s) => a + s.total, 0)) };
+}
+
+const summary = (label, rec) => ({ label, sides: rec ? rec.sides : [] });
+
+// slots: [{ label, sides: [{ name, rows: [{ id, stake, odds }] }] }] as read from the page.
+// Returns the saved totals of those slots.
 export async function saveSlots(slots, now = Date.now()) {
   const db = await open();
   const tx = db.transaction(STORE, 'readwrite');
   const store = tx.objectStore(STORE);
+  const out = [];
   for (const slot of slots) {
     const key = parseLabel(slot.label, now);
     if (!key) continue;
     const prev = await done(store.get(key.id));
-    store.put({
-      ...key,
-      label: slot.label,
-      sides: slot.sides.map(s => ({ name: s.name, total: s.total, count: s.count })),
-      total: slot.sides.reduce((a, s) => a + s.total, 0),
-      firstSeen: prev ? prev.firstSeen : now,
-      updatedAt: now,
-    });
+    const merged = mergeRows(prev, slot);
+    if (!merged) { out.push(summary(slot.label, prev)); continue; }
+    const rec = { ...key, label: slot.label, ...merged, firstSeen: prev ? prev.firstSeen : now, updatedAt: now };
+    store.put(rec);
+    out.push(summary(slot.label, rec));
   }
   await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
   channel.postMessage('changed');
+  return out;
+}
+
+// Saved totals of these slots, without changing anything.
+export async function getSlots(slots, now = Date.now()) {
+  const store = (await open()).transaction(STORE).objectStore(STORE);
+  return Promise.all(slots.map(async slot => {
+    const key = parseLabel(slot.label, now);
+    return summary(slot.label, key && await done(store.get(key.id)));
+  }));
+}
+
+// Drops the rows of slots that haven't changed for a day, keeping their totals.
+export async function clearOldRows(now = Date.now()) {
+  const db = await open();
+  const tx = db.transaction(STORE, 'readwrite');
+  tx.objectStore(STORE).openCursor().onsuccess = e => {
+    const cursor = e.target.result;
+    if (!cursor) return;
+    const { rows, ...rec } = cursor.value;
+    if (rows && now - rec.updatedAt > DAY) cursor.update({ ...rec, rowsCleared: true });
+    cursor.continue();
+  };
+  await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
 }
 
 // Records with from <= date <= to (ISO strings, either may be empty), newest day first.
