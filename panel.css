@@ -4,7 +4,7 @@
   bottom: 70px;
   z-index: 2147483647;
   min-width: 220px;
-  max-width: 320px;
+  max-width: 400px;
   padding: 8px 10px;
   background: #1f1f1f;
   color: #f2f2f2;
@@ -23,6 +23,8 @@
 #krain-report-panel .kr-table { width: 100%; margin-top: 6px; border-collapse: collapse; }
 #krain-report-panel .kr-table td { padding: 2px 4px; white-space: nowrap; }
 #krain-report-panel .kr-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+#krain-report-panel .kr-stake { font-weight: 400; color: #cfcfcf; }
+#krain-report-panel .kr-slot .kr-col { text-align: right; color: #9a9a9a; font-size: 11px; font-weight: 400; }
 #krain-report-panel .kr-cnt { text-align: right; color: #9a9a9a; font-size: 11px; }
 #krain-report-panel .kr-a td:first-child { color: #4fc3f7; }
 #krain-report-panel .kr-b td:first-child { color: #c0ca33; }

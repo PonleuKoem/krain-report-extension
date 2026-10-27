@@ -1,8 +1,11 @@
-import { query, channel } from './db.js';
+import { query, channel, stakeOf } from './db.js';
 
-const fmt = n => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+const fmt = n => n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 const out = document.getElementById('out');
+const SIDES = ['Rain', 'No Rain'];
 const side = (r, name) => (r.sides.find(s => s.name === name) || { total: 0 });
+const plus = (a, b) => a == null || b == null ? null : a + b;
+const totalStake = r => SIDES.map(n => stakeOf(r, n)).reduce(plus, 0);
 
 function cell(tag, text, cls) {
   const el = document.createElement(tag);
@@ -28,13 +31,17 @@ async function load() {
   }
   out.append(cell('div', 'Last seen ' + new Date(list[0].updatedAt).toLocaleString('en-GB'), 'day'));
   const table = document.createElement('table');
-  const head = document.createElement('tr');
-  head.append(cell('th', 'Slot'), cell('th', 'Rain'), cell('th', 'No Rain'), cell('th', 'Total'));
-  table.append(head);
-  for (const r of list) {
+  const row = (cls, ...cells) => {
     const tr = document.createElement('tr');
-    tr.append(cell('td', r.label), cell('td', fmt(side(r, 'Rain').total), 'rain'), cell('td', fmt(side(r, 'No Rain').total), 'norain'), cell('td', fmt(r.total)));
+    if (cls) tr.className = cls;
+    tr.append(...cells);
     table.append(tr);
+  };
+  for (const r of list) {
+    row('slot', cell('th', r.label), cell('th', 'Stake'), cell('th', '× odds'));
+    for (const [name, cls] of [['Rain', 'rain'], ['No Rain', 'norain']])
+      row(cls, cell('td', name), cell('td', fmt(stakeOf(r, name)), 'stake'), cell('td', fmt(side(r, name).total)));
+    row('sum', cell('td', 'Total'), cell('td', fmt(totalStake(r)), 'stake'), cell('td', fmt(r.total)));
   }
   out.append(table);
   return list;
@@ -42,7 +49,8 @@ async function load() {
 
 document.getElementById('copy').onclick = async e => {
   const list = await load();
-  const text = list.map(r => [r.label, ...r.sides.map(s => `${s.name}: ${fmt(s.total)}`), `Total: ${fmt(r.total)}`].join('\n')).join('\n\n');
+  const line = (name, stake, total) => `${name}: stake ${fmt(stake)}, × odds ${fmt(total)}`;
+  const text = list.map(r => [r.label, ...r.sides.map(s => line(s.name, stakeOf(r, s.name), s.total)), line('Total', totalStake(r), r.total)].join('\n')).join('\n\n');
   await navigator.clipboard.writeText(text);
   e.target.textContent = 'Copied';
   setTimeout(() => { e.target.textContent = 'Copy'; }, 1200);

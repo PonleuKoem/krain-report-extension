@@ -39,6 +39,7 @@ Each row on the site is a price level with a fixed id (`-7_5_25045_1` = odds -7.
 
 - The extension reads the site's slot lists (`#ticket_list` tables `rainN` / `noRainN`) directly, so any page language works. If the site changes that markup, `parser.js` needs updating.
 - Each row counts `stake × odds / 100`, with the odds' minus sign dropped (e.g. 22,100 at -7.5 → 1,657.50).
+- Next to each `× odds` total the panel and report also show the plain sum of the stakes. Slots saved before stake sums were kept show "—" there once their rows are dropped.
 - Rows hidden below the scroll in a list are counted too.
 - Only the order book (top stake lists) is counted, not Pending Order, Bet Order or Confirm Transaction.
 - The site shows slot dates without a year ("Oct 24"); the year closest to today is used. The 18 - 06 slot is filed under the day it starts.

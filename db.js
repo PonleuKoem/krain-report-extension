@@ -4,7 +4,7 @@
 // (their IndexedDB would belong to krain88.com), so they message the worker.
 //
 // Record: { id: '2026-10-24 18-06', date: '2026-10-24', session: '18-06', label,
-//           sides: [{ name, total, count }], total, firstSeen, updatedAt,
+//           sides: [{ name, stake, total, count }], stake, total, firstSeen, updatedAt,
 //           slotId: '25045', rows: { [tr id]: { side, odds, stake } } }
 // rows remembers every price level seen, with the stake it last showed.
 // A day after a slot last changed its rows are dropped (rowsCleared: true)
@@ -76,9 +76,30 @@ export function mergeRows(prev, slot) {
     for (const { id, stake, odds } of side.rows) rows[id] = { side: side.name, odds, stake };
   const sides = slot.sides.map(({ name }) => {
     const mine = Object.values(rows).filter(r => r.side === name);
-    return { name, total: cents(mine.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0)), count: mine.length };
+    return {
+      name,
+      stake: cents(mine.reduce((a, r) => a + r.stake, 0)),
+      total: cents(mine.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0)),
+      count: mine.length,
+    };
   });
-  return { slotId: (prev && prev.slotId) || [...ids][0], rows, sides, total: cents(sides.reduce((a, s) => a + s.total, 0)) };
+  return {
+    slotId: (prev && prev.slotId) || [...ids][0], rows, sides,
+    stake: cents(sides.reduce((a, s) => a + s.stake, 0)),
+    total: cents(sides.reduce((a, s) => a + s.total, 0)),
+  };
+}
+
+// Stake sum of one side of a record. Slots saved before stake sums were kept
+// add up their rows, or give null once the rows are gone.
+export function stakeOf(rec, name) {
+  const side = rec.sides.find(s => s.name === name);
+  if (!side) return 0;
+  if (side.stake != null) return side.stake;
+  // Rows saved by version 1.2.0 have no `stake` either.
+  const rows = rec.rows && Object.values(rec.rows).filter(r => r.side === name);
+  if (!rows || rows.some(r => typeof r.stake !== 'number')) return null;
+  return cents(rows.reduce((a, r) => a + r.stake, 0));
 }
 
 const summary = (label, rec) => ({ label, sides: rec ? rec.sides : [] });

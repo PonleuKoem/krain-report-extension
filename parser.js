@@ -4,7 +4,7 @@
 //   #ticket_list table[name=rainN]    -> Rain rows of slot n
 //   #ticket_list table[name=noRainN]  -> No Rain rows of slot n
 // Each row is <tr id><td><span>stake</span><span>odds</span></td></tr>;
-// a row counts stake * |odds| / 100.
+// a side sums its stakes and counts stake * |odds| / 100 per row.
 // Exposed as window.KRainParser.
 (function (root) {
   const SIDES = [
@@ -35,8 +35,10 @@
       }
     }
     // What the list shows right now; the saved total also keeps rows that have left it.
-    const total = Math.round(rows.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0) * 100) / 100;
-    return { name, count: rows.length, total, rows };
+    const cents = n => Math.round(n * 100) / 100;
+    const stake = cents(rows.reduce((a, r) => a + r.stake, 0));
+    const total = cents(rows.reduce((a, r) => a + r.stake * Math.abs(r.odds) / 100, 0));
+    return { name, count: rows.length, stake, total, rows };
   }
 
   function read(doc) {

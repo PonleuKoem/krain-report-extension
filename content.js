@@ -16,10 +16,12 @@
   const saved = new Map(); // label -> sides with the saved totals
   const status = { error: null, saveError: null, recording: true };
 
-  const fmt = n => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const fmt = n => n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
   // Saved totals once the background has answered, what the page shows until then.
   const sidesOf = slot => saved.get(slot.label) || slot.sides;
   const grand = sides => sides.reduce((a, s) => a + s.total, 0);
+  // Slots saved before stake sums were kept have none.
+  const grandStake = sides => sides.some(s => s.stake == null) ? null : sides.reduce((a, s) => a + s.stake, 0);
 
   // The background worker files the rows in IndexedDB, one record per day and slot.
   // While a save is in flight only the newest snapshot is kept, so fast updates coalesce.
@@ -60,7 +62,8 @@
   }
 
   function reportText(label, sides) {
-    return [label, ...sides.map(s => `${s.name}: ${fmt(s.total)}`), `Total: ${fmt(grand(sides))}`].join('\n');
+    const line = (name, stake, total) => `${name}: stake ${fmt(stake)}, × odds ${fmt(total)}`;
+    return [label, ...sides.map(s => line(s.name, s.stake, s.total)), line('Total', grandStake(sides), grand(sides))].join('\n');
   }
 
   // Totals shown last time, so a total that just changed can flash.
@@ -72,14 +75,21 @@
 
   function slotTable(slot) {
     return h('table', { className: 'kr-table' + (slot.visible ? '' : ' kr-hidden') },
-      h('tr', { className: 'kr-slot' }, h('td', { colSpan: 3, textContent: slot.label + (slot.visible ? '' : ' (other page)') })),
+      h('tr', { className: 'kr-slot' },
+        h('td', { textContent: slot.label + (slot.visible ? '' : ' (other page)') }),
+        h('td', { className: 'kr-col', textContent: 'Stake' }),
+        h('td', { className: 'kr-col', textContent: '× odds' }),
+        h('td'),
+      ),
       sidesOf(slot).map((s, i) => h('tr', { className: i === 0 ? 'kr-a' : 'kr-b' },
         h('td', { textContent: s.name }),
+        h('td', { className: 'kr-num kr-stake', textContent: fmt(s.stake) }),
         h('td', { className: 'kr-num' + (changed(slot.label, s) ? ' kr-flash' : ''), textContent: fmt(s.total) }),
         h('td', { className: 'kr-cnt', textContent: `${s.count} rows` }),
       )),
       h('tr', { className: 'kr-sum' },
         h('td', { textContent: 'Total' }),
+        h('td', { className: 'kr-num kr-stake', textContent: fmt(grandStake(sidesOf(slot))) }),
         h('td', { className: 'kr-num', textContent: fmt(grand(sidesOf(slot))) }),
         h('td'),
       ),
@@ -100,7 +110,7 @@
   let changedAt = null;
   function render(force) {
     const message = last && last.slots.length ? null : statusText();
-    const data = JSON.stringify(last && last.slots.map(s => [s.label, s.visible, sidesOf(s).map(x => [x.total, x.count])]));
+    const data = JSON.stringify(last && last.slots.map(s => [s.label, s.visible, sidesOf(s).map(x => [x.stake, x.total, x.count])]));
     const key = JSON.stringify([collapsed, message, data, status.saveError, status.recording]);
     if (key === rendered && !force) return;
     rendered = key;
