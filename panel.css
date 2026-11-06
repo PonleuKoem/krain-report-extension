@@ -29,6 +29,7 @@
 #krain-report-panel .kr-a td:first-child { color: #4fc3f7; }
 #krain-report-panel .kr-b td:first-child { color: #c0ca33; }
 #krain-report-panel .kr-sum td { border-top: 1px solid #444; }
+#krain-report-panel .kr-total { color: #ef5350; }
 #krain-report-panel .kr-slot td { padding-top: 4px; color: #ffb74d; font-size: 12px; font-weight: 600; }
 #krain-report-panel .kr-hidden { opacity: 0.7; }
 #krain-report-panel .kr-live { color: #66bb6a; font-size: 11px; font-variant-numeric: tabular-nums; }
