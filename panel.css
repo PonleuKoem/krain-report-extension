@@ -42,3 +42,27 @@
   background: #e8711a; color: #fff; cursor: pointer; font-weight: 600;
 }
 #krain-report-panel .kr-actions button:disabled { opacity: 0.5; cursor: default; }
+#krain-report-panel.kr-alert { animation: kr-alert 2.4s ease-out; }
+@keyframes kr-alert {
+  0%, 30%, 60% { box-shadow: 0 0 0 3px #ef5350, 0 4px 18px rgba(0, 0, 0, 0.35); }
+  15%, 45%, 100% { box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
+}
+#krain-report-panel .kr-badge {
+  padding: 0 6px; border-radius: 9px; background: #ef5350; color: #fff;
+  font-size: 11px; font-weight: 600; line-height: 18px;
+}
+#krain-report-panel .kr-notes { margin-top: 8px; border-top: 1px solid #444; padding-top: 4px; }
+#krain-report-panel .kr-notes-head { display: flex; align-items: center; color: #ffb74d; font-size: 12px; font-weight: 600; }
+#krain-report-panel .kr-notes-head span { flex: 1; }
+#krain-report-panel .kr-clear {
+  padding: 1px 8px; border: 0; border-radius: 4px; background: #333;
+  color: #cfcfcf; cursor: pointer; font-size: 11px;
+}
+#krain-report-panel .kr-notes-list { max-height: 140px; overflow-y: auto; margin-top: 4px; }
+#krain-report-panel .kr-note {
+  padding: 2px 4px 2px 6px; margin-bottom: 2px; border-left: 3px solid #ef5350;
+  font-size: 11px; line-height: 1.35; white-space: normal;
+}
+#krain-report-panel .kr-note-gone,
+#krain-report-panel .kr-note-many { border-left-color: #9a9a9a; color: #cfcfcf; }
+#krain-report-panel .kr-note-time { color: #9a9a9a; font-variant-numeric: tabular-nums; }
