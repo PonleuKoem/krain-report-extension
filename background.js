@@ -1,5 +1,5 @@
 // Receives each read of the betting page from the content script and files it in IndexedDB.
-import { saveSlots, getSlots, clearOldRows } from './db.js';
+import { saveSlots, getSlots, getRows, clearOldRows } from './db.js';
 
 // Only one tab records at a time. Two tabs of the betting page update a moment
 // apart, and taking turns would keep putting back stakes that already changed.
@@ -26,6 +26,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (now - clearedAt > CLEAR_EVERY) clear(now);
     (recording ? saveSlots(msg.slots, now) : getSlots(msg.slots, now))
       .then(slots => reply({ ok: true, recording, slots }), e => reply({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === 'getRows') {
+    getRows(msg.labels).then(rows => reply({ ok: true, rows }), e => reply({ ok: false, error: e.message }));
     return true;
   }
 });

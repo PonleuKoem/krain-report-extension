@@ -15,11 +15,17 @@ Adds up **stake × odds / 100** for every row on the Rain and No Rain sides of t
 - Totals keep rows that have left the lists (see *How rows are counted*). With the betting page open in two tabs, only one records; the other shows its totals.
 - Slots on the other page tab (e.g. 06 - 18 while "18:00-06:00 & 06:00-12:00" is open) are read too, without clicking; they are shown dimmed.
 - **Copy** copies a text report of the slots on the page.
+- **Download** saves every row of the lists as an Excel file (`krain-list_<date>_<time>.xlsx`, also opens in Google Sheets and Numbers), one line per row: slot, side, odds, stake, stake × odds / 100, whether it is on the list now, and its row id. Rows that have left the list but still count in the totals are included with *On list* = `no`, so the file adds up to the panel's totals.
+  - The header has filter buttons. The **Total** line at the bottom sums only the rows a filter shows, e.g. filter *Slot* to one slot and *On list* to `yes` for what that list shows right now.
 - **Changes** lists every row whose stake went down or that left the list, with the time, slot, side and odds, e.g. `Rain -7.5 went down 15,000 → 12,000 (stake −3,000, × odds −225)` or `Rain -8 left the list at 10,000, still counted`. A row that comes back lower is listed too. New changes flash the panel's border, and a red badge counts them while the panel is collapsed. **Clear** empties the list.
   - A row has to stay gone for 1.5 s to count as left, so the site redrawing a list doesn't raise notices. When more than 3 rows leave a slot at once they are one notice.
   - Changes are compared from when the page was opened, per tab, and are not saved: reloading the page empties the list.
 - Every slot is saved day by day in the extension's IndexedDB (one record per day and slot, kept up to date while you watch).
-- The toolbar icon opens a popup with the latest day's slots. **All reports** opens the report page, where you can filter by date range (Today, Last 7 days, This month, All, or any From / To) and slot, see day subtotals, **Export CSV** and **Delete shown**.
+- The toolbar icon opens a popup with the latest day's slots. **All reports** opens the report page:
+  - It shows every saved day by default, newest first: each day with its subtotal, then its slots, and a grand total at the bottom. Rain, No Rain and Total cards at the top sum what is shown.
+  - Filter with **Today**, **Last 7 days**, **This month**, **All**, any **From** / **To** date, or one slot. The filter is kept in the page address, so a filtered view can be bookmarked.
+  - **Download CSV** saves the slots shown, **Download all** saves every saved slot whatever the filter, one line per slot (opens in Excel or Google Sheets). **Print / PDF** prints the page, or saves it as a PDF from the print dialog.
+  - **Delete shown…** deletes the slots shown, after asking.
 
 ## How rows are counted
 

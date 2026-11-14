@@ -263,7 +263,10 @@
     else if (!status.recording) panel.append(h('div', { className: 'kr-status', textContent: 'Another tab is recording; totals shown are what it saved.' }));
     if (notices.length) panel.append(noticeList(unseen));
     unseen = 0;
-    panel.append(h('div', { className: 'kr-actions' }, h('button', { textContent: 'Copy', onclick: e => copy(e.target) })));
+    panel.append(h('div', { className: 'kr-actions' },
+      h('button', { textContent: 'Copy', onclick: e => copy(e.target) }),
+      h('button', { textContent: 'Download', title: 'Save every row of the lists as an Excel file', onclick: e => download(e.target) }),
+    ));
     for (const s of last.slots) for (const x of sidesOf(s)) prevTotals.set(s.label + '|' + x.name, x.total);
   }
 
@@ -272,6 +275,52 @@
     await navigator.clipboard.writeText(text);
     btn.textContent = 'Copied';
     setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+  }
+
+  // Excel file with one line per row (price level) of every slot: the rows on
+  // the lists now plus the saved rows that have left them, which the totals
+  // still count. The Total line under them sums only the rows a filter shows.
+  async function download(btn) {
+    const slots = [...last.slots].sort((a, b) => b.visible - a.visible);
+    let saved = [];
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'getRows', labels: slots.map(s => s.label) });
+      if (res && res.ok) saved = res.rows;
+    } catch (e) { /* the rows on the page are still worth saving */ }
+
+    const bold = v => ({ v, s: 'bold' });
+    const lines = [['Slot', 'Side', 'Odds', 'Stake', 'Stake x odds / 100', 'On list', 'Row id'].map(bold)];
+    slots.forEach((slot, i) => {
+      const rows = new Map();
+      for (const [id, r] of Object.entries(saved[i] || {})) rows.set(id, { ...r, onList: false });
+      for (const side of slot.sides) for (const r of side.rows) rows.set(r.id, { side: side.name, odds: r.odds, stake: r.stake, onList: true });
+      const sideOrder = name => slot.sides.findIndex(s => s.name === name);
+      const sorted = [...rows].sort(([, a], [, b]) => sideOrder(a.side) - sideOrder(b.side) || a.odds - b.odds);
+      for (const [id, r] of sorted) {
+        lines.push([slot.label, r.side, r.odds, { v: r.stake, s: 'num' }, { v: cents(r.stake * Math.abs(r.odds) / 100), s: 'num' }, r.onList ? 'yes' : 'no', id]);
+      }
+    });
+    const dataEnd = lines.length;
+    if (dataEnd > 1) {
+      // SUBTOTAL(9, …) skips rows hidden by a filter, e.g. On list = no.
+      const sum = c => cents(lines.slice(1).reduce((a, r) => a + r[c].v, 0));
+      lines.push([bold('Total'), null, null,
+        { f: `SUBTOTAL(9,D2:D${dataEnd})`, v: sum(3), s: 'boldNum' },
+        { f: `SUBTOTAL(9,E2:E${dataEnd})`, v: sum(4), s: 'boldNum' }]);
+    }
+
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const name = `krain-list_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+    const blob = window.KRainXlsx.build({ sheet: 'Rows', rows: lines, widths: [16, 10, 8, 14, 18, 8, 16], filterRows: dataEnd });
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    btn.textContent = 'Saved';
+    setTimeout(() => { btn.textContent = 'Download'; }, 1200);
   }
 
   function update() {
