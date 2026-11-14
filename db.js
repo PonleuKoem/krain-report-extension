@@ -135,6 +135,17 @@ export async function getSlots(slots, now = Date.now()) {
   }));
 }
 
+// Saved rows of these slots ({ [tr id]: { side, odds, stake } }), null for a
+// slot with no record or whose rows were dropped.
+export async function getRows(labels, now = Date.now()) {
+  const store = (await open()).transaction(STORE).objectStore(STORE);
+  return Promise.all(labels.map(async label => {
+    const key = parseLabel(label, now);
+    const rec = key && await done(store.get(key.id));
+    return (rec && rec.rows) || null;
+  }));
+}
+
 // Drops the rows of slots that haven't changed for a day, keeping their totals.
 export async function clearOldRows(now = Date.now()) {
   const db = await open();

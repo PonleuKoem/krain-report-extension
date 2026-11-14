@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KRain Stake Report",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "description": "Adds up stake x odds / 100 on the Rain / No Rain lists of krain88 for each time slot (18-06, 06-12, 06-18) and keeps a day-by-day report.",
   "background": {
     "service_worker": "background.js",
@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["*://krain88.com/*", "*://*.krain88.com/*"],
-      "js": ["parser.js", "content.js"],
+      "js": ["parser.js", "xlsx.js", "content.js"],
       "css": ["panel.css"],
       "all_frames": true,
       "run_at": "document_idle"

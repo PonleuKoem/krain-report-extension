@@ -17,6 +17,85 @@
   const status = { error: null, saveError: null, recording: true };
 
   const fmt = n => n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const cents = n => Math.round(n * 100) / 100;
+  const slotIdOf = rowId => (/_(\d+)_\d+$/.exec(rowId) || [])[1];
+
+  // Notices: a row whose stake went down, or that left the list, so it's clear
+  // why the site's numbers dropped while the saved totals didn't (or did).
+  // Only what this tab sees since it loaded is compared.
+  const NOTICE_MAX = 40;
+  const REMOVE_AFTER = 1500; // a row must stay gone this long, so a redraw isn't a removal
+  const GROUP_OVER = 3; // more rows than this leaving a slot at once make one notice
+  const notices = []; // newest first: { at, label, kind, side, odds, from, to, count }
+  let unseen = 0;
+  const tracked = new Map(); // label -> { slotId, known: Map(id -> row), present: Set(id) }
+  const leaving = new Map(); // label|id -> { label, id, row, at }
+  let leavingTimer = null;
+
+  function notice(n) {
+    notices.unshift({ at: new Date(), ...n });
+    notices.length = Math.min(notices.length, NOTICE_MAX);
+    unseen++;
+  }
+
+  function track(slots, now) {
+    const labels = new Set(slots.map(s => s.label));
+    for (const slot of slots) {
+      const rows = new Map();
+      for (const side of slot.sides) for (const r of side.rows) rows.set(r.id, { side: side.name, odds: r.odds, stake: r.stake });
+      const ids = new Set([...rows.keys()].map(slotIdOf).filter(Boolean));
+      let t = tracked.get(slot.label);
+      // Rows of another slot under this title mean the page is mid-redraw.
+      if (ids.size > 1 || t && t.slotId && ids.size && !ids.has(t.slotId)) continue;
+      if (!t) {
+        // First read of this slot: nothing to compare with yet.
+        tracked.set(slot.label, { slotId: [...ids][0], known: rows, present: new Set(rows.keys()) });
+        continue;
+      }
+      t.slotId = t.slotId || [...ids][0];
+      for (const [id, row] of rows) {
+        // Back within REMOVE_AFTER: it never left. `known` still has its last stake.
+        leaving.delete(slot.label + '|' + id);
+        const was = t.known.get(id);
+        if (was && row.stake < was.stake) {
+          notice({ label: slot.label, kind: was.gone ? 'back' : 'down', side: row.side, odds: row.odds, from: was.stake, to: row.stake });
+        }
+        t.known.set(id, row);
+      }
+      for (const id of t.present) {
+        if (!rows.has(id) && !leaving.has(slot.label + '|' + id)) {
+          leaving.set(slot.label + '|' + id, { label: slot.label, id, row: t.known.get(id), at: now });
+        }
+      }
+      t.present = new Set(rows.keys());
+    }
+    // A slot that left the page takes its rows with it: not a removal.
+    for (const [key, l] of leaving) if (!labels.has(l.label)) leaving.delete(key);
+    confirmLeaving(now);
+  }
+
+  // Rows still gone after REMOVE_AFTER have left the list.
+  function confirmLeaving(now) {
+    const bySlot = new Map();
+    for (const [key, l] of leaving) {
+      if (now - l.at < REMOVE_AFTER) continue;
+      leaving.delete(key);
+      const t = tracked.get(l.label);
+      if (t) t.known.set(l.id, { ...l.row, gone: true });
+      if (!bySlot.has(l.label)) bySlot.set(l.label, []);
+      bySlot.get(l.label).push(l.row);
+    }
+    for (const [label, rows] of bySlot) {
+      if (rows.length > GROUP_OVER) {
+        notice({ label, kind: 'many', count: rows.length, from: cents(rows.reduce((a, r) => a + r.stake, 0)),
+          side: [...new Set(rows.map(r => r.side))].join(' + ') });
+      } else {
+        for (const r of rows) notice({ label, kind: 'gone', side: r.side, odds: r.odds, from: r.stake });
+      }
+    }
+    clearTimeout(leavingTimer);
+    leavingTimer = leaving.size ? setTimeout(() => { confirmLeaving(Date.now()); render(); }, 300) : null;
+  }
   // Saved totals once the background has answered, what the page shows until then.
   const sidesOf = slot => saved.get(slot.label) || slot.sides;
   const grand = sides => sides.reduce((a, s) => a + s.total, 0);
@@ -96,6 +175,34 @@
     );
   }
 
+  const signed = n => (n < 0 ? '−' : '+') + fmt(Math.abs(n));
+  function noticeText(n) {
+    const row = `${n.side} ${n.odds}`;
+    const hit = n.to != null && ` (stake ${signed(n.to - n.from)}, × odds ${signed(cents((n.to - n.from) * Math.abs(n.odds) / 100))})`;
+    switch (n.kind) {
+      case 'down': return `${row} went down ${fmt(n.from)} → ${fmt(n.to)}${hit}`;
+      case 'back': return `${row} came back lower ${fmt(n.from)} → ${fmt(n.to)}${hit}`;
+      case 'gone': return `${row} left the list at ${fmt(n.from)}, still counted`;
+      case 'many': return `${n.count} rows left the list (${n.side}), stake ${fmt(n.from)}, still counted`;
+    }
+  }
+
+  function noticeList(fresh) {
+    return h('div', { className: 'kr-notes' },
+      h('div', { className: 'kr-notes-head' },
+        h('span', { textContent: `Changes (${notices.length})` }),
+        h('button', { className: 'kr-clear', textContent: 'Clear', onclick: () => { notices.length = 0; unseen = 0; render(); } }),
+      ),
+      h('div', { className: 'kr-notes-list' }, notices.map((n, i) => h('div', {
+        className: 'kr-note kr-note-' + n.kind + (i < fresh ? ' kr-flash' : ''),
+        title: n.label,
+      },
+        h('span', { className: 'kr-note-time', textContent: n.at.toLocaleTimeString('en-GB') + ' ' + n.label.replace(/^\S+ \S+ /, '') }),
+        ' ', noticeText(n),
+      ))),
+    );
+  }
+
   // Shown on member pages while no slot is found, since the site blocks DevTools.
   function statusText() {
     if (!/\/member\//.test(location.pathname) || window !== window.top && !document.getElementById('ticket_list')) return null;
@@ -108,10 +215,11 @@
   let rendered = '';
   let renderedData = '';
   let changedAt = null;
+  let alertedAt = null;
   function render(force) {
     const message = last && last.slots.length ? null : statusText();
     const data = JSON.stringify(last && last.slots.map(s => [s.label, s.visible, sidesOf(s).map(x => [x.stake, x.total, x.count])]));
-    const key = JSON.stringify([collapsed, message, data, status.saveError, status.recording]);
+    const key = JSON.stringify([collapsed, message, data, status.saveError, status.recording, notices.length, notices[0] && +notices[0].at, collapsed && unseen]);
     if (key === rendered && !force) return;
     rendered = key;
     if (data !== renderedData) {
@@ -131,9 +239,17 @@
     const head = h('div', { className: 'kr-head' },
       h('span', { className: 'kr-title', textContent: 'Stake Report' }),
       message ? null : h('span', { className: 'kr-live', textContent: '● ' + changedAt.toLocaleTimeString('en-GB'), title: 'Live: last change' }),
+      collapsed && unseen ? h('span', { className: 'kr-badge', textContent: '▼ ' + unseen, title: 'Rows that went down or left the list' }) : null,
       h('button', { className: 'kr-min', textContent: collapsed ? '+' : '−', title: 'Collapse', onclick: () => { collapsed = !collapsed; render(); } }),
     );
     panel.replaceChildren(head);
+    // A new notice flashes the panel's border, even while it's collapsed.
+    if (unseen && notices[0] && notices[0].at !== alertedAt) {
+      alertedAt = notices[0].at;
+      panel.classList.remove('kr-alert');
+      void panel.offsetWidth; // restart the animation
+      panel.classList.add('kr-alert');
+    }
     if (collapsed) return;
     if (message) {
       panel.append(h('div', { className: 'kr-status', textContent: message }));
@@ -145,7 +261,12 @@
     panel.append(...slots.map(slotTable));
     if (status.saveError) panel.append(h('div', { className: 'kr-status', textContent: 'Not saved: ' + status.saveError }));
     else if (!status.recording) panel.append(h('div', { className: 'kr-status', textContent: 'Another tab is recording; totals shown are what it saved.' }));
-    panel.append(h('div', { className: 'kr-actions' }, h('button', { textContent: 'Copy', onclick: e => copy(e.target) })));
+    if (notices.length) panel.append(noticeList(unseen));
+    unseen = 0;
+    panel.append(h('div', { className: 'kr-actions' },
+      h('button', { textContent: 'Copy', onclick: e => copy(e.target) }),
+      h('button', { textContent: 'Download', title: 'Save every row of the lists as an Excel file', onclick: e => download(e.target) }),
+    ));
     for (const s of last.slots) for (const x of sidesOf(s)) prevTotals.set(s.label + '|' + x.name, x.total);
   }
 
@@ -156,11 +277,60 @@
     setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
   }
 
+  // Excel file with one line per row (price level) of every slot: the rows on
+  // the lists now plus the saved rows that have left them, which the totals
+  // still count. The Total line under them sums only the rows a filter shows.
+  async function download(btn) {
+    const slots = [...last.slots].sort((a, b) => b.visible - a.visible);
+    let saved = [];
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'getRows', labels: slots.map(s => s.label) });
+      if (res && res.ok) saved = res.rows;
+    } catch (e) { /* the rows on the page are still worth saving */ }
+
+    const bold = v => ({ v, s: 'bold' });
+    const lines = [['Slot', 'Side', 'Odds', 'Stake', 'Stake x odds / 100', 'On list', 'Row id'].map(bold)];
+    slots.forEach((slot, i) => {
+      const rows = new Map();
+      for (const [id, r] of Object.entries(saved[i] || {})) rows.set(id, { ...r, onList: false });
+      for (const side of slot.sides) for (const r of side.rows) rows.set(r.id, { side: side.name, odds: r.odds, stake: r.stake, onList: true });
+      const sideOrder = name => slot.sides.findIndex(s => s.name === name);
+      const sorted = [...rows].sort(([, a], [, b]) => sideOrder(a.side) - sideOrder(b.side) || a.odds - b.odds);
+      for (const [id, r] of sorted) {
+        lines.push([slot.label, r.side, r.odds, { v: r.stake, s: 'num' }, { v: cents(r.stake * Math.abs(r.odds) / 100), s: 'num' }, r.onList ? 'yes' : 'no', id]);
+      }
+    });
+    const dataEnd = lines.length;
+    if (dataEnd > 1) {
+      // SUBTOTAL(9, …) skips rows hidden by a filter, e.g. On list = no.
+      const sum = c => cents(lines.slice(1).reduce((a, r) => a + r[c].v, 0));
+      lines.push([bold('Total'), null, null,
+        { f: `SUBTOTAL(9,D2:D${dataEnd})`, v: sum(3), s: 'boldNum' },
+        { f: `SUBTOTAL(9,E2:E${dataEnd})`, v: sum(4), s: 'boldNum' }]);
+    }
+
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const name = `krain-list_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+    const blob = window.KRainXlsx.build({ sheet: 'Rows', rows: lines, widths: [16, 10, 8, 14, 18, 8, 16], filterRows: dataEnd });
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    btn.textContent = 'Saved';
+    setTimeout(() => { btn.textContent = 'Download'; }, 1200);
+  }
+
   function update() {
     try {
       last = P.read(document);
       status.error = null;
-      if (last) save(last.slots);
+      if (last) {
+        track(last.slots, Date.now());
+        save(last.slots);
+      }
     } catch (e) {
       last = null;
       status.error = e.message;

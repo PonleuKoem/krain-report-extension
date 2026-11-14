@@ -6,74 +6,140 @@
   <title>KRain Reports</title>
   <style>
     :root {
-      --bg: #f6f6f4; --card: #fff; --text: #222; --muted: #777; --line: #e6e6e2;
-      --accent: #e8711a; --rain: #1e88c9; --norain: #7d8c00; --day: #fbf3ea;
+      --bg: #f5f5f3; --card: #fff; --text: #1f1f1f; --muted: #7a7a76; --line: #e7e7e3; --soft: #f0f0ec;
+      --accent: #e8711a; --accent-text: #fff; --rain: #1677b8; --norain: #6f7d00; --danger: #c9302c;
+      --day: #fbf4ec;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #161616; --card: #1f1f1f; --text: #eee; --muted: #9a9a9a; --line: #333;
-        --accent: #f08a3c; --rain: #4fc3f7; --norain: #c0ca33; --day: #2a231c;
+        --bg: #141414; --card: #1d1d1d; --text: #ececec; --muted: #9a9a96; --line: #2f2f2f; --soft: #262626;
+        --accent: #f08a3c; --accent-text: #1a1a1a; --rain: #4fc3f7; --norain: #c0ca33; --danger: #ef6f6b;
+        --day: #261f18;
       }
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-    main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
-    h1 { margin: 0 0 16px; font-size: 20px; }
-    .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
-    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-    input, select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; }
-    .quick { display: flex; gap: 6px; flex-wrap: wrap; }
-    button { padding: 7px 12px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
-    button.secondary { background: var(--line); color: var(--text); }
-    button.danger { background: transparent; color: #d9534f; border: 1px solid currentColor; }
-    .quick button { background: transparent; color: var(--accent); border: 1px solid var(--accent); padding: 5px 10px; }
-    .quick button.on { background: var(--accent); color: #fff; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 14px 0; }
-    .stat { padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
-    .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
-    .stat span { font-size: 12px; color: var(--muted); }
-    .stat.rain b { color: var(--rain); }
-    .stat.norain b { color: var(--norain); }
-    .wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 7px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+    button { font: inherit; cursor: pointer; }
+
+    /* Header: title on the left, downloads on the right */
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
+    header .title { flex: 1; min-width: 200px; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+    .sub { margin-top: 2px; color: var(--muted); font-size: 13px; }
+    .btn { padding: 8px 14px; border: 1px solid transparent; border-radius: 6px; font-weight: 600; }
+    .btn.primary { background: var(--accent); color: var(--accent-text); }
+    .btn.ghost { background: var(--card); color: var(--text); border-color: var(--line); }
+    .btn.ghost:hover { border-color: var(--muted); }
+    .btn.danger { background: transparent; color: var(--danger); border-color: transparent; padding-inline: 6px; font-weight: 500; }
+    .btn.danger:hover { text-decoration: underline; }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+
+    /* Filters */
+    .filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+    .seg { display: inline-flex; padding: 3px; background: var(--soft); border-radius: 8px; }
+    .seg button { padding: 6px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; }
+    .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+    .fields { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+    label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: 13px/1.3 inherit; font-family: inherit; text-transform: none; letter-spacing: 0; }
+
+    /* Summary */
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0 6px; }
+    .card { padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+    .card .name { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .card.rain .name { color: var(--rain); }
+    .card.norain .name { color: var(--norain); }
+    .card .big { margin-top: 4px; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .card .small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .count { margin: 0 2px 10px; color: var(--muted); font-size: 12px; }
+
+    /* Table */
+    .wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 8px 12px; text-align: right; white-space: nowrap; }
     th:first-child, td:first-child { text-align: left; }
-    th { font-size: 12px; color: var(--muted); font-weight: 600; }
-    tr.day td { background: var(--day); font-weight: 600; }
+    thead th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--line); }
+    thead tr.group th { padding-bottom: 2px; border-bottom: 0; }
+    thead tr.group th.rain { color: var(--rain); }
+    thead tr.group th.norain { color: var(--norain); }
+    thead tr.group th[colspan] { text-align: center; }
+    th.split, td.split { border-left: 1px solid var(--line); }
+    tbody td { border-bottom: 1px solid var(--line); }
+    tbody tr.slot:hover td { background: var(--soft); }
+    tr.day td { background: var(--day); font-weight: 700; }
+    tr.day td:first-child { font-size: 13px; }
+    td.slotname { padding-left: 24px; color: var(--muted); font-weight: 600; }
     td.rain { color: var(--rain); }
     td.norain { color: var(--norain); }
-    td.stake { opacity: 0.75; }
-    .muted { color: var(--muted); font-size: 12px; }
-    .empty { padding: 30px; text-align: center; color: var(--muted); }
-    .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    td.stake { color: var(--muted); }
+    td.total { font-weight: 700; }
+    td.rows, td.when { color: var(--muted); font-size: 12px; }
+    tfoot td { padding-block: 10px; font-weight: 700; border-top: 2px solid var(--line); }
+    .empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+    .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+
+    header .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 640px) {
+      header .actions { width: 100%; }
+      header .actions .btn { flex: 1; padding-inline: 8px; }
+      .fields { margin-left: 0; }
+      .summary { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .card { padding: 10px; }
+      .card .name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .btn { white-space: nowrap; }
+      .card .big { font-size: 17px; }
+      .card .small { font-size: 11px; }
+    }
+    @media print {
+      :root { --bg: #fff; --card: #fff; --soft: #fff; --day: #f3f3f3; }
+      header .actions, .filters, .foot button { display: none; }
+      .wrap, .card { border-color: #ccc; }
+      main { max-width: none; padding: 0; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>KRain Reports</h1>
+    <header>
+      <div class="title">
+        <h1>KRain Reports</h1>
+        <div class="sub" id="range"></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="print" title="Print, or save as PDF">Print / PDF</button>
+        <button class="btn ghost" id="csv-all" title="Every saved slot, ignoring the filter">Download all</button>
+        <button class="btn primary" id="csv" title="The slots shown below">Download CSV</button>
+      </div>
+    </header>
+
     <div class="filters">
-      <label>From <input type="date" id="from"></label>
-      <label>To <input type="date" id="to"></label>
-      <label>Slot
-        <select id="session">
-          <option value="">All slots</option>
-          <option value="06-12">06 - 12</option>
-          <option value="06-18">06 - 18</option>
-          <option value="18-06">18 - 06</option>
-        </select>
-      </label>
-      <div class="quick" id="quick">
+      <div class="seg" id="quick">
         <button data-range="today">Today</button>
         <button data-range="7">Last 7 days</button>
         <button data-range="month">This month</button>
         <button data-range="all">All</button>
       </div>
+      <div class="fields">
+        <label>From <input type="date" id="from"></label>
+        <label>To <input type="date" id="to"></label>
+        <label>Slot
+          <select id="session">
+            <option value="">All slots</option>
+            <option value="06-12">06 - 12</option>
+            <option value="06-18">06 - 18</option>
+            <option value="18-06">18 - 06</option>
+          </select>
+        </label>
+      </div>
     </div>
-    <div class="stats" id="stats"></div>
+
+    <div class="summary" id="summary"></div>
+    <div class="count" id="count"></div>
     <div class="wrap" id="out"></div>
-    <div class="actions">
-      <button id="csv">Export CSV</button>
-      <button id="delete" class="danger">Delete shown</button>
+    <div class="foot">
+      <span>Days are newest first. A slot's totals keep rows that have left the site's list.</span>
+      <button class="btn danger" id="delete">Delete shown…</button>
     </div>
   </main>
   <script type="module" src="report.js"></script>
