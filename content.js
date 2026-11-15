@@ -277,42 +277,90 @@
     setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
   }
 
-  // Excel file with one line per row (price level) of every slot: the rows on
-  // the lists now plus the saved rows that have left them, which the totals
-  // still count. The Total line under them sums only the rows a filter shows.
+  // One Excel sheet per slot (day and time) with Rain and No Rain side by side:
+  // the rows on the lists now plus the saved rows that have left them, which
+  // the totals still count, so the Total lines match the panel.
+  const SHEET_COLS = ['Odds', 'Stake', 'Stake x odds / 100', 'On list'];
+  const SIDE_WIDTH = SHEET_COLS.length + 1; // an empty column between the sides
+  const letter = i => String.fromCharCode(65 + i);
+  const timesOdds = r => cents(r.stake * Math.abs(r.odds) / 100);
+
+  function slotSheet(slot, savedRows) {
+    const sides = slot.sides.map(s => ({ name: s.name, rows: new Map() }));
+    const sideOf = name => sides.find(s => s.name === name);
+    for (const [id, r] of Object.entries(savedRows || {})) {
+      if (sideOf(r.side)) sideOf(r.side).rows.set(id, { odds: r.odds, stake: r.stake, onList: false });
+    }
+    for (const side of slot.sides) {
+      for (const r of side.rows) sideOf(side.name).rows.set(r.id, { odds: r.odds, stake: r.stake, onList: true });
+    }
+    const lists = sides.map(s => [...s.rows.values()].sort((a, b) => a.odds - b.odds));
+
+    const bold = v => ({ v, s: 'bold' });
+    const put = (row, k, j, v) => { row[k * SIDE_WIDTH + j] = v; };
+    const [, day, time] = /^(.*) (\d{1,2}-\d{1,2})$/.exec(slot.label) || [null, slot.label, ''];
+    const rows = [[bold('Day'), day, bold('Time'), time], [], []];
+    sides.forEach((s, k) => {
+      put(rows[1], k, 0, { v: s.name, s: s.name === 'Rain' ? 'rain' : 'noRain' });
+      SHEET_COLS.forEach((c, j) => put(rows[2], k, j, bold(c)));
+    });
+
+    const first = rows.length + 1; // Excel row number of the first row of stakes
+    const height = Math.max(0, ...lists.map(l => l.length));
+    for (let n = 0; n < height; n++) {
+      const row = [];
+      lists.forEach((list, k) => {
+        const r = list[n];
+        if (!r) return;
+        put(row, k, 0, r.odds);
+        put(row, k, 1, { v: r.stake, s: 'num' });
+        put(row, k, 2, { v: timesOdds(r), s: 'num' });
+        put(row, k, 3, r.onList ? 'yes' : 'no');
+      });
+      rows.push(row);
+    }
+
+    // Totals as formulas, so they follow edits made in Excel.
+    const end = first + height - 1;
+    const range = c => `${letter(c)}${first}:${letter(c)}${end}`;
+    const total = [], onList = [];
+    const totalRow = rows.length + 2;
+    lists.forEach((list, k) => {
+      const c = j => k * SIDE_WIDTH + j;
+      const sum = (pick, only) => cents(list.filter(r => !only || r.onList).reduce((a, r) => a + pick(r), 0));
+      const cellOf = (j, pick, only) => ({
+        f: !height ? null : only ? `SUMIF(${range(c(3))},"yes",${range(c(j))})` : `SUM(${range(c(j))})`,
+        v: sum(pick, only), s: 'boldNum',
+      });
+      put(total, k, 0, bold('Total'));
+      put(total, k, 1, cellOf(1, r => r.stake));
+      put(total, k, 2, cellOf(2, timesOdds));
+      put(onList, k, 0, bold('On list now'));
+      put(onList, k, 1, cellOf(1, r => r.stake, true));
+      put(onList, k, 2, cellOf(2, timesOdds, true));
+    });
+    // Rain + No Rain, the panel's Total line.
+    const both = j => ({
+      f: sides.map((_, k) => letter(k * SIDE_WIDTH + j) + totalRow).join('+'),
+      v: cents(sides.reduce((a, _, k) => a + total[k * SIDE_WIDTH + j].v, 0)), s: 'boldNum',
+    });
+    rows.push([], total, onList, [], [bold(sides.map(s => s.name).join(' + ')), both(1), both(2)]);
+
+    return { name: slot.label, rows, widths: [14, 14, 18, 8, 3, 14, 14, 18, 8], freezeRows: 3 };
+  }
+
   async function download(btn) {
-    const slots = [...last.slots].sort((a, b) => b.visible - a.visible);
+    const slots = last.slots;
     let saved = [];
     try {
       const res = await chrome.runtime.sendMessage({ type: 'getRows', labels: slots.map(s => s.label) });
       if (res && res.ok) saved = res.rows;
     } catch (e) { /* the rows on the page are still worth saving */ }
 
-    const bold = v => ({ v, s: 'bold' });
-    const lines = [['Slot', 'Side', 'Odds', 'Stake', 'Stake x odds / 100', 'On list', 'Row id'].map(bold)];
-    slots.forEach((slot, i) => {
-      const rows = new Map();
-      for (const [id, r] of Object.entries(saved[i] || {})) rows.set(id, { ...r, onList: false });
-      for (const side of slot.sides) for (const r of side.rows) rows.set(r.id, { side: side.name, odds: r.odds, stake: r.stake, onList: true });
-      const sideOrder = name => slot.sides.findIndex(s => s.name === name);
-      const sorted = [...rows].sort(([, a], [, b]) => sideOrder(a.side) - sideOrder(b.side) || a.odds - b.odds);
-      for (const [id, r] of sorted) {
-        lines.push([slot.label, r.side, r.odds, { v: r.stake, s: 'num' }, { v: cents(r.stake * Math.abs(r.odds) / 100), s: 'num' }, r.onList ? 'yes' : 'no', id]);
-      }
-    });
-    const dataEnd = lines.length;
-    if (dataEnd > 1) {
-      // SUBTOTAL(9, …) skips rows hidden by a filter, e.g. On list = no.
-      const sum = c => cents(lines.slice(1).reduce((a, r) => a + r[c].v, 0));
-      lines.push([bold('Total'), null, null,
-        { f: `SUBTOTAL(9,D2:D${dataEnd})`, v: sum(3), s: 'boldNum' },
-        { f: `SUBTOTAL(9,E2:E${dataEnd})`, v: sum(4), s: 'boldNum' }]);
-    }
-
     const d = new Date();
     const p = n => String(n).padStart(2, '0');
     const name = `krain-list_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
-    const blob = window.KRainXlsx.build({ sheet: 'Rows', rows: lines, widths: [16, 10, 8, 14, 18, 8, 16], filterRows: dataEnd });
+    const blob = window.KRainXlsx.build(slots.map((slot, i) => slotSheet(slot, saved[i])));
     const url = URL.createObjectURL(blob);
     const a = h('a', { href: url, download: name });
     document.body.append(a);
